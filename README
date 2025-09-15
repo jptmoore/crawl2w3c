@@ -1,0 +1,31 @@
+
+## Environment Setup
+Create a .env file in the project root with the following entry:
+OPENAI_API_KEY=sk-your_api_key
+
+Install required modules:
+pip install -r requirements.txt
+
+
+## Crawl
+The crawler can be configured by adjusting the `crawl-config.yaml` file.
+To run a crawl:
+
+docker run --rm \
+  -v "$PWD/crawl-config.yaml:/app/crawl-config.yaml" \
+  -v "$PWD/crawls:/crawls" \
+  webrecorder/browsertrix-crawler crawl \
+  --config /app/crawl-config.yaml
+
+
+## Generate Annotations
+Run the following commands depending on the model:
+
+GPT-5
+make run-results
+
+TinyLlama
+make run-tl
+
+Note: the tinyllama model will need downloading in .gguf format, and placed inside models. 
+https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF

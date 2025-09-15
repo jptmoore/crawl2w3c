@@ -1,0 +1,13 @@
+.env
+.venv/
+**/.venv/
+
+models/
+crawls/
+
+**/results/
+
+__pycache__/
+*.py[cod]
+*$py.class
+.DS_Store

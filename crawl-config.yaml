@@ -1,0 +1,14 @@
+id: one
+collection: one
+
+seeds:
+  - https://example.com
+
+scopeType: prefix
+depth: 0
+
+combineWARC: true
+generateWACZ: false
+
+workers: 8
+logLevel: error

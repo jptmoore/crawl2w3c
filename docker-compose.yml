@@ -1,0 +1,8 @@
+services:
+  crawler:
+    build: .
+    image: crawl-to-w3c
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "crawl --config /app/crawl-config.yaml && make run-main"
