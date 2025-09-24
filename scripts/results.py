@@ -2,7 +2,6 @@ from CrawlToW3C.process_warc import get_warc_file_paths, iter_html_responses
 from CrawlToW3C.html_preprocess import process_html
 from CrawlToW3C.url_filter import should_archive
 from CrawlToW3C.llms.openai_wrapper import get_client, generate_response
-from CrawlToW3C.llms.llama_cpp_wrapper import get_client, generate_response
 from CrawlToW3C.llms.load_system_prompt import load_system_prompt
 from CrawlToW3C.llms.token_count import count_tokens_openai
 

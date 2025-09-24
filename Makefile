@@ -3,7 +3,7 @@ PYTHONPATH := src
 .PHONY: run-filter run-generate
 
 run-results:
-	PYTHONPATH=$(PYTHONPATH) python3 scripts/results.py
+	PYTHONPATH=/app/src python3 /app/scripts/results.py
 
 run-main:
-	PYTHONPATH=$(PYTHONPATH) python3 scripts/main.py
+	PYTHONPATH=/app/src python3 /app/scripts/main.py
