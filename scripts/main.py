@@ -1,27 +1,40 @@
+
+import os
+import json
+import time
 from CrawlToW3C.process_warc import get_warc_file_paths, iter_html_responses
 from CrawlToW3C.html_preprocess import process_html
 from CrawlToW3C.url_filter import should_archive
 from CrawlToW3C.llms.openai_wrapper import get_client, generate_response
 from CrawlToW3C.llms.load_system_prompt import load_system_prompt
 from CrawlToW3C.llms.token_count import count_tokens_openai
-
-import json
-import time
-
 from dotenv import load_dotenv
 load_dotenv()
 
 # config
 TOKEN_BUDGET = 30000
 DELAY = 60
-OUTPUT_FILE = "src/CrawlToW3C/results/results.json"
+OUTPUT_FILE = "src/CrawlToW3C/results/results_collection.json"
 
 def main():
+    # Check if the archive directory exists before processing
+    archive_dir = "/app/collections/one/archive"
+    if not os.path.exists(archive_dir):
+        print(f"ERROR: Archive directory '{archive_dir}' does not exist. Did the crawl step succeed?")
+        return
     llm = get_client()
     file_paths = get_warc_file_paths()
     system_prompt_gen = load_system_prompt("src/CrawlToW3C/llms/system_prompts.yml", "gpt5_generation")
     system_prompt_filter = load_system_prompt("src/CrawlToW3C/llms/system_prompts.yml", "gpt5_url_selection")
     sys_prompt_tokens = count_tokens_openai(system_prompt_gen)
+
+
+    # Ensure results directory exists
+    os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
+
+    # Prepare annotation collection
+    annotation_items = []
+
 
     for url, html in iter_html_responses(file_paths):
         generated_annotation = None
@@ -36,7 +49,6 @@ def main():
         processed_html = process_html(original_html)
         processed_html = f"{str(url)}\n\n{processed_html}"
         processed_html_tokens = count_tokens_openai(processed_html)
-
 
         if heuristic_decision is True:
             sel = generate_response(
@@ -69,10 +81,19 @@ def main():
                 if token_count > TOKEN_BUDGET:
                     time.sleep(DELAY)
                     token_count = 0
-        
-                with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-                    json.dump(generated_annotation_json, f, ensure_ascii=False, indent=2)
-                    f.write("\n")
+
+                annotation_items.append(generated_annotation_json)
+
+    # Write W3C Web Annotation Collection
+    collection = {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "id": "urn:uuid:collection-001",
+        "type": "AnnotationCollection",
+        "label": "Crawl2W3C Annotation Collection",
+        "items": annotation_items
+    }
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(collection, f, ensure_ascii=False, indent=2)
 
 
 if __name__ == "__main__":

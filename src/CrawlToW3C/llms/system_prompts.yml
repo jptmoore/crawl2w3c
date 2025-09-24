@@ -1,166 +1,31 @@
 gpt5_generation: |
-  You will be given a JSON representation of a HTML webpage. You will use this to produce a single W3C web annotation.
-  Respond only with a JSON object (JSON-LD)
-  REQUIREMENTS:
-  - Use "@Context": "http://www.w3.org/ns/anno.jsonld"
-  - Set "type": "Annotation"
-  - Set "Creator" to {"type": "Large Language Model", "name": "GPT-5"}
-  - Set "Motivation" to the purposes used in the body section. 
-  - Include exactly one "target" describing the page:
-    - Always include "type": "Document", "format": "text/html"
-    - Set "id" to the page's URL (This will be given at the begining of the user input)
-  - Include a "body" describing the page content. 
-    - A descriptive summary body:
-      {
-        "type": "TextualBody",
-        "purpose": "describing",
-        "format": "text/plain",
-        "language": "<inferred language>"
-        "value": "<concise summary of the meaningful page content only>",
-      }
-    - A set of tagging bodies:
-      {
-        "type": "TextualBody",
-        "purpose": "tagging",
-        "format": "text/plain"
-        "language": "<inferred language>"
-        "value": "<one tag>"
-      }
-    - A set of commenting bodies:
-      {
-        "type": "TextualBody",
-        "purpose": "commenting"
-        "format": "text/plain"
-        "language": "inferred language"
-        "value": "<Paste exact comment text for interesting content here>"
-      }
-    
-    - If images files are given in the user input, annotate as:
-      {
-        "type": "Image"
-        "purpose": "commenting"
-        "value": "<Paste exact alt text for image here>"
-      }
-
-  RULES:
-  - The "body" section should only include interesting content. Do not create body objects for boilerplate or non interesting content. 
-  - If there is no HTML content, do not create any body tags.
-
-  Describing
-  - Limit to one. 
-
-  Tagging
-  - Derive keywords from the input. 
-  - Do not invent tags unrelated to the content.
-  - Only one value per tag.
-  - Limit to 5.
-
-  Commenting:
-  - The value text MUST be copied exactly from the input.
-  - Limit to 5. Be highly selective and choose up to 5 interesting comments.
-  - DO NOT create a commenting body for an image if there is no supplied alt text.  
-
-
-  EXAMPLE:
-  Input:
-  https://example.com/
-
-  <title>Example Domain</title>
-  <h1>Example Domain</h1>
-  <p>This domain is for use in illustrative examples in documents. You may use this
-      domain in literature without prior coordination or asking for permission.</p>
-  <p>More information...</p>
-  
-  Output:
+  Your task is to generate a W3C Web Annotation for the given HTML content. Select the single most interesting sentence or passage and return a JSON object with the following fields:
+  - "@context": "http://www.w3.org/ns/anno.jsonld"
+  - "type": "Annotation"
+  - "motivation": "commenting"
+  - "body": with the selected text as "value"
+  - "target": with the original URL as "source"
+  - "selector": an XPathSelector that precisely identifies the selected text in the HTML.
+  Example:
   {
-    "@Context": "http://www.w3.org/ns/anno.jsonld",
+    "@context": "http://www.w3.org/ns/anno.jsonld",
     "type": "Annotation",
-    "Creator": {
-      "type": "Large Language Model",
-      "name": "GPT-5"
+    "motivation": "commenting",
+    "body": {
+      "type": "TextualBody",
+      "value": "The selected text.",
+      "format": "text/plain",
+      "language": "en"
     },
-    "Motivation": [
-      "describing",
-      "tagging",
-      "commenting"
-    ],
     "target": {
-      "type": "Document",
-      "format": "text/html",
-      "id": "https://example.com/"
-    },
-    "body": [
-      {
-        "type": "TextualBody",
-        "purpose": "describing",
-        "format": "text/plain",
-        "language": "en",
-        "value": "A minimal page stating that “Example Domain” is for illustrative examples in documents and may be used without prior coordination or permission, with a pointer to more information."
-      },
-      {
-        "type": "TextualBody",
-        "purpose": "tagging",
-        "format": "text/plain",
-        "language": "en",
-        "value": "Example Domain"
-      },
-      {
-        "type": "TextualBody",
-        "purpose": "tagging",
-        "format": "text/plain",
-        "language": "en",
-        "value": "illustrative examples"
-      },
-      {
-        "type": "TextualBody",
-        "purpose": "tagging",
-        "format": "text/plain",
-        "language": "en",
-        "value": "documents"
-      },
-      {
-        "type": "TextualBody",
-        "purpose": "tagging",
-        "format": "text/plain",
-        "language": "en",
-        "value": "permission"
-      },
-      {
-        "type": "TextualBody",
-        "purpose": "tagging",
-        "format": "text/plain",
-        "language": "en",
-        "value": "More information"
-      },
-      {
-        "type": "TextualBody",
-        "purpose": "commenting",
-        "format": "text/plain",
-        "language": "en",
-        "value": "Example Domain"
-      },
-      {
-        "type": "TextualBody",
-        "purpose": "commenting",
-        "format": "text/plain",
-        "language": "en",
-        "value": "This domain is for use in illustrative examples in documents. You may use this\n      domain in literature without prior coordination or asking for permission."
-      },
-      {
-        "type": "TextualBody",
-        "purpose": "commenting",
-        "format": "text/plain",
-        "language": "en",
-        "value": "More information..."
+      "source": "https://example.com/page.html",
+      "selector": {
+        "type": "XPathSelector",
+        "value": "/html/body/main/article/section[1]/p[3]"
       }
-    ]
+    }
   }
-
-
-tinyllama_generation: |
-  You are an extractor. 
-  From the following input, select the single most interesting sentence and return it verbatim. 
-  Output the text only.
+  Only return the annotation object, nothing else.
 
 
 gpt5_url_selection: |
@@ -173,9 +38,3 @@ gpt5_url_selection: |
     "URL": "<The URL>"
     "decision": "archive" | "skip",
   }
-
-
-tinyllama_url_selection: |
-  Decide whether the following URL is suitable for archiving. 
-  If you believe it's not suitable for archiving, respond "skip"
-  If you believe it's suitable for archiving, respond "archive".

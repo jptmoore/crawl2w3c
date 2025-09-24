@@ -1,8 +1,11 @@
+version: '3.8'
 services:
-  crawler:
+  crawl2w3c:
     build: .
-    image: crawl-to-w3c
-    working_dir: /app
     volumes:
-      - .:/app
-    command: sh -c "crawl --config /app/crawl-config.yaml && make run-main"
+      - ./crawls:/app/crawls
+      - ./src:/app/src
+      - ./crawl-config.yaml:/app/crawl-config.yaml
+      - ./.env:/app/.env
+    environment:
+      - PYTHONPATH=/app/src

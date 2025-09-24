@@ -17,19 +17,12 @@ seeds:
   - https://example.com
 ```
 
-## 3. Build
+## 3. Build & Run
+
+To build and run the full pipeline (crawl and annotation) in one step:
 
 ```bash
-docker-compose build
-```
-
-## 4. Run
-
-```bash
-docker run --rm \
-  -v "$PWD/crawls:/app/crawls" \
-  -v "$PWD/src:/app/src" \
-  crawl-to-w3c
+docker-compose up --build
 ```
 
 ## Output
@@ -37,5 +30,5 @@ docker run --rm \
 Final results are written to:
 
 ```
-src/CrawlToW3C/results/results.json
+src/CrawlToW3C/results/results_collection.json
 ```

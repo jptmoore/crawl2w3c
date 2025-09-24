@@ -3,7 +3,7 @@ from warcio.archiveiterator import ArchiveIterator
 
 def get_warc_file_paths():
     archive_path = os.path.join(
-        "crawls",
+        "/app",
         "collections",
         "one",
         "archive"
