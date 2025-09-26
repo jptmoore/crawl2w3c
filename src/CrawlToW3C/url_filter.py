@@ -8,6 +8,11 @@ SKIP_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico", ".bmp",
 
 seen = set()
 
+def clear_seen_urls():
+    """Clear the seen URLs set. Call this at the start of each pipeline run."""
+    global seen
+    seen.clear()
+
 def normalise(url: str):
     u = urlparse(url)
 

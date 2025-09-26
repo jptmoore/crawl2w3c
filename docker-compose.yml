@@ -1,5 +1,21 @@
 version: '3.8'
 services:
+  miiify:
+    image: jptmoore/miiify:pack
+    ports:
+      - "10000:10000"
+    environment:
+      - NODE_ENV=production
+    networks:
+      - crawl2w3c-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
   crawl2w3c:
     build: .
     volumes:
@@ -9,3 +25,14 @@ services:
       - ./.env:/app/.env
     environment:
       - PYTHONPATH=/app/src
+    depends_on:
+      - miiify
+    networks:
+      - crawl2w3c-network
+    restart: "no"
+    profiles:
+      - pipeline
+
+networks:
+  crawl2w3c-network:
+    driver: bridge
