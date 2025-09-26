@@ -35,7 +35,7 @@ def main():
 
     # Prepare annotation collection - store AnnotationPages
     annotation_pages = []
-
+    warc_filenames = set()
 
     for url, html, warc_metadata in iter_html_responses(file_paths):
         generated_annotation = None
@@ -83,6 +83,9 @@ def main():
                     time.sleep(DELAY)
                     token_count = 0
 
+                # Collect WARC filename for collection label
+                warc_filenames.add(warc_metadata.get("warc_filename"))
+                
                 # Add metadata to the AnnotationPage
                 collection_id = "urn:uuid:collection-001"
                 page_metadata = {
@@ -109,36 +112,44 @@ def main():
                     # Add an ID and metadata to the AnnotationPage if it doesn't have them
                     if "id" not in generated_annotation_page:
                         generated_annotation_page["id"] = f"urn:uuid:page-{len(annotation_pages)+1}"
+                    
+                    # Reorder to put metadata after type and before items
+                    items = generated_annotation_page.pop("items", [])
                     generated_annotation_page.update(page_metadata)
+                    generated_annotation_page["items"] = items
                     annotation_pages.append(generated_annotation_page)
                 elif isinstance(generated_annotation_page, dict) and "items" in generated_annotation_page:
                     # Convert to proper AnnotationPage if missing type
                     page = {
                         "@context": "http://www.w3.org/ns/anno.jsonld",
-                        "id": f"urn:uuid:page-{len(annotation_pages)+1}",
                         "type": "AnnotationPage",
-                        "items": generated_annotation_page["items"],
-                        **page_metadata
+                        "id": f"urn:uuid:page-{len(annotation_pages)+1}",
+                        **page_metadata,
+                        "items": generated_annotation_page["items"]
                     }
                     annotation_pages.append(page)
                 elif isinstance(generated_annotation_page, list):
                     # Wrap array of annotations in AnnotationPage
                     page = {
                         "@context": "http://www.w3.org/ns/anno.jsonld",
-                        "id": f"urn:uuid:page-{len(annotation_pages)+1}",
                         "type": "AnnotationPage",
-                        "items": generated_annotation_page,
-                        **page_metadata
+                        "id": f"urn:uuid:page-{len(annotation_pages)+1}",
+                        **page_metadata,
+                        "items": generated_annotation_page
                     }
                     annotation_pages.append(page)
 
+    # Create label with WARC filename(s)
+    warc_files_str = ", ".join(sorted(warc_filenames)) if warc_filenames else "Unknown WARC"
+    collection_label = f"Crawl2W3C Annotation Collection - {warc_files_str}"
+    
     # Write W3C Web Annotation Collection containing AnnotationPages with rich metadata
     collection_id = "urn:uuid:collection-001"
     collection = {
         "@context": "http://www.w3.org/ns/anno.jsonld",
         "id": collection_id,
         "type": "AnnotationCollection",
-        "label": "Crawl2W3C Annotation Collection",
+        "label": collection_label,
         "creator": {
             "id": "urn:crawl2w3c:v1",
             "type": "Software",
