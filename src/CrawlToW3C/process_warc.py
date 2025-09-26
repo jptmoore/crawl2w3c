@@ -48,7 +48,7 @@ def get_urls(warc_filepaths: str):
 
 
 def iter_html_responses(warc_filepaths: str):
-    """Iterate over HTML responses in WARC file. Yields HTML and URL."""
+    """Iterate over HTML responses in WARC file. Yields HTML, URL, and metadata."""
     for record in iter_warc_records(warc_filepaths):
         if record.rec_type != "response":
             continue
@@ -66,8 +66,21 @@ def iter_html_responses(warc_filepaths: str):
         html = payload.decode("utf-8", errors="ignore")
         
         url = record.rec_headers.get_header("WARC-Target-URI")
+        
+        # Extract WARC metadata for provenance
+        metadata = {
+            "warc_date": record.rec_headers.get_header("WARC-Date"),
+            "warc_record_id": record.rec_headers.get_header("WARC-Record-ID"),
+            "warc_ip_address": record.rec_headers.get_header("WARC-IP-Address"),
+            "warc_payload_digest": record.rec_headers.get_header("WARC-Payload-Digest"),
+            "warc_block_digest": record.rec_headers.get_header("WARC-Block-Digest"),
+            "content_length": record.rec_headers.get_header("Content-Length"),
+            "http_date": http_headers.get_header("date") if http_headers else None,
+            "http_server": http_headers.get_header("server") if http_headers else None,
+            "http_last_modified": http_headers.get_header("last-modified") if http_headers else None,
+        }
 
-        yield url, html
+        yield url, html, metadata
 
 
 

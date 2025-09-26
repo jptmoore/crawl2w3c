@@ -2,6 +2,7 @@
 import os
 import json
 import time
+from datetime import datetime
 from CrawlToW3C.process_warc import get_warc_file_paths, iter_html_responses
 from CrawlToW3C.html_preprocess import process_html
 from CrawlToW3C.url_filter import should_archive
@@ -36,7 +37,7 @@ def main():
     annotation_pages = []
 
 
-    for url, html in iter_html_responses(file_paths):
+    for url, html, warc_metadata in iter_html_responses(file_paths):
         generated_annotation = None
         processed_html = None
         llm_decision = None
@@ -82,11 +83,33 @@ def main():
                     time.sleep(DELAY)
                     token_count = 0
 
+                # Add metadata to the AnnotationPage
+                collection_id = "urn:uuid:collection-001"
+                page_metadata = {
+                    "partOf": collection_id,
+                    "created": warc_metadata.get("warc_date"),
+                    "generator": {
+                        "id": "urn:crawl2w3c:v1",
+                        "type": "Software",
+                        "name": "Crawl2W3C",
+                        "homepage": "https://github.com/jptmoore/crawl2w3c"
+                    },
+                    "generated": warc_metadata.get("warc_date"),
+                    "source": {
+                        "warc_record_id": warc_metadata.get("warc_record_id"),
+                        "warc_ip_address": warc_metadata.get("warc_ip_address"),
+                        "warc_payload_digest": warc_metadata.get("warc_payload_digest"),
+                        "http_server": warc_metadata.get("http_server"),
+                        "http_last_modified": warc_metadata.get("http_last_modified")
+                    }
+                }
+
                 # Add the AnnotationPage to the collection
                 if isinstance(generated_annotation_page, dict) and generated_annotation_page.get("type") == "AnnotationPage":
-                    # Add an ID to the AnnotationPage if it doesn't have one
+                    # Add an ID and metadata to the AnnotationPage if it doesn't have them
                     if "id" not in generated_annotation_page:
                         generated_annotation_page["id"] = f"urn:uuid:page-{len(annotation_pages)+1}"
+                    generated_annotation_page.update(page_metadata)
                     annotation_pages.append(generated_annotation_page)
                 elif isinstance(generated_annotation_page, dict) and "items" in generated_annotation_page:
                     # Convert to proper AnnotationPage if missing type
@@ -94,7 +117,8 @@ def main():
                         "@context": "http://www.w3.org/ns/anno.jsonld",
                         "id": f"urn:uuid:page-{len(annotation_pages)+1}",
                         "type": "AnnotationPage",
-                        "items": generated_annotation_page["items"]
+                        "items": generated_annotation_page["items"],
+                        **page_metadata
                     }
                     annotation_pages.append(page)
                 elif isinstance(generated_annotation_page, list):
@@ -103,16 +127,32 @@ def main():
                         "@context": "http://www.w3.org/ns/anno.jsonld",
                         "id": f"urn:uuid:page-{len(annotation_pages)+1}",
                         "type": "AnnotationPage",
-                        "items": generated_annotation_page
+                        "items": generated_annotation_page,
+                        **page_metadata
                     }
                     annotation_pages.append(page)
 
-    # Write W3C Web Annotation Collection containing AnnotationPages
+    # Write W3C Web Annotation Collection containing AnnotationPages with rich metadata
+    collection_id = "urn:uuid:collection-001"
     collection = {
         "@context": "http://www.w3.org/ns/anno.jsonld",
-        "id": "urn:uuid:collection-001",
+        "id": collection_id,
         "type": "AnnotationCollection",
         "label": "Crawl2W3C Annotation Collection",
+        "creator": {
+            "id": "urn:crawl2w3c:v1",
+            "type": "Software",
+            "name": "Crawl2W3C",
+            "homepage": "https://github.com/jptmoore/crawl2w3c"
+        },
+        "created": datetime.utcnow().isoformat() + "Z",
+        "generator": {
+            "id": "urn:openai:gpt-5",
+            "type": "Software",
+            "name": "OpenAI GPT-5",
+            "homepage": "https://openai.com"
+        },
+        "generated": datetime.utcnow().isoformat() + "Z",
         "items": annotation_pages
     }
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
