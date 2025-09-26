@@ -30,8 +30,6 @@ services:
     networks:
       - crawl2w3c-network
     restart: "no"
-    profiles:
-      - pipeline
 
 networks:
   crawl2w3c-network:
