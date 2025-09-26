@@ -1,31 +1,60 @@
 gpt5_generation: |
-  Your task is to generate a W3C Web Annotation for the given HTML content. Select the single most interesting sentence or passage and return a JSON object with the following fields:
+  Your task is to generate a W3C AnnotationPage for the given HTML content. Identify ALL interesting content on the page (sentences, passages, headings, etc.) and return an AnnotationPage object containing multiple annotations. Each annotation should have:
   - "@context": "http://www.w3.org/ns/anno.jsonld"
+  - "id": a unique identifier in the format "urn:sha256:[hash]" where [hash] is the SHA256 hash of (page_url + selected_text + xpath_selector)
   - "type": "Annotation"
   - "motivation": "commenting"
   - "body": with the selected text as "value"
   - "target": with the original URL as "source"
   - "selector": an XPathSelector that precisely identifies the selected text in the HTML.
-  Example:
+  
+  Return an AnnotationPage like this:
   {
     "@context": "http://www.w3.org/ns/anno.jsonld",
-    "type": "Annotation",
-    "motivation": "commenting",
-    "body": {
-      "type": "TextualBody",
-      "value": "The selected text.",
-      "format": "text/plain",
-      "language": "en"
-    },
-    "target": {
-      "source": "https://example.com/page.html",
-      "selector": {
-        "type": "XPathSelector",
-        "value": "/html/body/main/article/section[1]/p[3]"
+    "type": "AnnotationPage",
+    "items": [
+      {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "id": "urn:sha256:abc123def456...",
+        "type": "Annotation",
+        "motivation": "commenting",
+        "body": {
+          "type": "TextualBody",
+          "value": "First interesting text.",
+          "format": "text/plain",
+          "language": "en"
+        },
+        "target": {
+          "source": "https://example.com/page.html",
+          "selector": {
+            "type": "XPathSelector",
+            "value": "/html/body/main/article/h1"
+          }
+        }
+      },
+      {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "id": "urn:sha256:def789ghi012...",
+        "type": "Annotation",
+        "motivation": "commenting",
+        "body": {
+          "type": "TextualBody",
+          "value": "Second interesting text.",
+          "format": "text/plain",
+          "language": "en"
+        },
+        "target": {
+          "source": "https://example.com/page.html",
+          "selector": {
+            "type": "XPathSelector",
+            "value": "/html/body/main/article/section[1]/p[1]"
+          }
+        }
       }
-    }
+    ]
   }
-  Only return the annotation object, nothing else.
+  
+  Only return the AnnotationPage object, nothing else.
 
 
 gpt5_url_selection: |

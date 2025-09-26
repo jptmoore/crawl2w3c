@@ -32,8 +32,8 @@ def main():
     # Ensure results directory exists
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 
-    # Prepare annotation collection
-    annotation_items = []
+    # Prepare annotation collection - store AnnotationPages
+    annotation_pages = []
 
 
     for url, html in iter_html_responses(file_paths):
@@ -73,7 +73,7 @@ def main():
                     user_prompt=processed_html
                 )
 
-                generated_annotation_json = json.loads(generated_annotation)
+                generated_annotation_page = json.loads(generated_annotation)
 
                 completion_tokens = count_tokens_openai(generated_annotation) if generated_annotation else 0
                 token_count += prompt_tokens + completion_tokens
@@ -82,15 +82,38 @@ def main():
                     time.sleep(DELAY)
                     token_count = 0
 
-                annotation_items.append(generated_annotation_json)
+                # Add the AnnotationPage to the collection
+                if isinstance(generated_annotation_page, dict) and generated_annotation_page.get("type") == "AnnotationPage":
+                    # Add an ID to the AnnotationPage if it doesn't have one
+                    if "id" not in generated_annotation_page:
+                        generated_annotation_page["id"] = f"urn:uuid:page-{len(annotation_pages)+1}"
+                    annotation_pages.append(generated_annotation_page)
+                elif isinstance(generated_annotation_page, dict) and "items" in generated_annotation_page:
+                    # Convert to proper AnnotationPage if missing type
+                    page = {
+                        "@context": "http://www.w3.org/ns/anno.jsonld",
+                        "id": f"urn:uuid:page-{len(annotation_pages)+1}",
+                        "type": "AnnotationPage",
+                        "items": generated_annotation_page["items"]
+                    }
+                    annotation_pages.append(page)
+                elif isinstance(generated_annotation_page, list):
+                    # Wrap array of annotations in AnnotationPage
+                    page = {
+                        "@context": "http://www.w3.org/ns/anno.jsonld",
+                        "id": f"urn:uuid:page-{len(annotation_pages)+1}",
+                        "type": "AnnotationPage",
+                        "items": generated_annotation_page
+                    }
+                    annotation_pages.append(page)
 
-    # Write W3C Web Annotation Collection
+    # Write W3C Web Annotation Collection containing AnnotationPages
     collection = {
         "@context": "http://www.w3.org/ns/anno.jsonld",
         "id": "urn:uuid:collection-001",
         "type": "AnnotationCollection",
         "label": "Crawl2W3C Annotation Collection",
-        "items": annotation_items
+        "items": annotation_pages
     }
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(collection, f, ensure_ascii=False, indent=2)
