@@ -28,22 +28,18 @@ def wait_for_miiify_server(base_url: str = "http://localhost:10000", max_attempt
         base_url: Base URL of the Miiify server
         max_attempts: Maximum number of connection attempts
     """
-    print(f"⏳ Waiting for Miiify server at {base_url}...")
-    
     for attempt in range(max_attempts):
         try:
             # Try to connect to the server
             response = requests.get(f"{base_url}/", timeout=5)
             if response.status_code == 200 and response.text.strip() == "OK":
-                print(f"✅ Miiify server is ready!")
                 return True
         except requests.exceptions.RequestException:
             pass
         
-        print(f"⏳ Attempt {attempt + 1}/{max_attempts} - Server not ready, waiting...")
         time.sleep(2)
     
-    print(f"❌ ERROR: Miiify server at {base_url} is not responding after {max_attempts} attempts")
+    print(f"ERROR: Miiify server at {base_url} is not responding after {max_attempts} attempts")
     return False
 
 
@@ -75,7 +71,7 @@ def main():
     
     # Check if file exists
     if not os.path.exists(results_file):
-        print(f"❌ ERROR: Results file not found: {results_file}")
+        print(f"ERROR: Results file not found: {results_file}")
         sys.exit(1)
     
     # Wait for Miiify server to be ready
@@ -93,10 +89,10 @@ def main():
         print(f"📊 Collection contains {len(collection_data.get('items', []))} pages with {total_annotations} total annotations")
         
     except FileNotFoundError:
-        print(f"❌ ERROR: Results file not found: {results_file}")
+        print(f"ERROR: Results file not found: {results_file}")
         sys.exit(1)
     except json.JSONDecodeError as e:
-        print(f"❌ ERROR: Invalid JSON in results file: {e}")
+        print(f"ERROR: Invalid JSON in results file: {e}")
         sys.exit(1)
     
     # Create Miiify client and upload
@@ -114,17 +110,15 @@ def main():
         print(f"Annotations uploaded: {results['annotations_uploaded']}")
         
         if results['errors']:
-            print(f"❌ Errors encountered: {len(results['errors'])}")
+            print(f"Errors encountered: {len(results['errors'])}")
             for error in results['errors']:
                 print(f"  • {error}")
-            print("="*60)
             sys.exit(1)
         else:
-            print("✅ Upload completed successfully!")
-            print("="*60)
+            print("✓ Upload completed successfully!")
             
     except Exception as e:
-        print(f"❌ ERROR: Failed to upload to Miiify server: {e}")
+        print(f"ERROR: Failed to upload to Miiify server: {e}")
         sys.exit(1)
 
 

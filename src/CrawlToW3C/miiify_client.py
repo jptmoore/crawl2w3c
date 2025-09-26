@@ -44,28 +44,16 @@ class MiiifyClient:
         headers = self.session.headers.copy()
         headers['Slug'] = container_slug
         
-        print(f"🔍 Creating container with slug: {container_slug}")
-        print(f"🔍 Container data: {json.dumps(container_data, indent=2)}")
-        print(f"🔍 Headers: {headers}")
-        
         try:
             response = self.session.post(url, json=container_data, headers=headers)
-            print(f"🔍 Response status: {response.status_code}")
-            print(f"🔍 Response text: {response.text}")
             
             if response.status_code == 400 and "container exists" in response.text.lower():
-                print(f"🔄 Container {container_slug} already exists, attempting to delete and recreate...")
                 delete_success = self.delete_container(container_slug)
                 
                 if delete_success:
                     # Try creating again after successful deletion
-                    print(f"🔄 Retrying container creation after deletion...")
                     response = self.session.post(url, json=container_data, headers=headers)
-                    print(f"🔍 Retry response status: {response.status_code}")
-                    print(f"🔍 Retry response text: {response.text}")
                 else:
-                    print(f"⚠️ Could not delete existing container. Container may already exist and deletion is not supported.")
-                    print(f"💡 Continuing with existing container: {container_slug}")
                     # Don't raise error - use existing container
                     return {"message": f"Using existing container {container_slug}"}
             
@@ -96,35 +84,22 @@ class MiiifyClient:
         # Remove ID and created from annotation data - server will create these
         clean_annotation = annotation_data.copy()
         if 'id' in clean_annotation:
-            original_id = clean_annotation.pop('id')
-            print(f"🔍 Removed ID '{original_id}' from annotation, using Slug: {annotation_slug}")
+            clean_annotation.pop('id')
         if 'created' in clean_annotation:
-            original_created = clean_annotation.pop('created')
-            print(f"🔍 Removed created timestamp '{original_created}' - server will create its own")
-        
-        print(f"🔍 Uploading annotation to: {url}")
-        print(f"🔍 Annotation slug: {annotation_slug}")
-        print(f"🔍 Annotation data: {json.dumps(clean_annotation, indent=2)}")
-        print(f"🔍 Headers: {headers}")
+            clean_annotation.pop('created')
         
         try:
             response = self.session.post(url, json=clean_annotation, headers=headers)
-            print(f"🔍 Response status: {response.status_code}")
-            print(f"🔍 Response text: {response.text}")
             
             if response.status_code == 201:
-                print(f"✅ Successfully uploaded annotation {annotation_slug} (201 Created)")
                 return response.json()
             elif response.status_code == 400:
-                print(f"❌ Bad Request (400) for annotation {annotation_slug}")
-                print(f"❌ Error details: {response.text}")
                 raise requests.exceptions.HTTPError(f"400 Bad Request: {response.text}")
             else:
                 response.raise_for_status()
                 return response.json()
         except requests.exceptions.RequestException as e:
-            print(f"❌ Error uploading annotation {annotation_slug}: {e}")
-            print(f"❌ Response content: {response.text if 'response' in locals() else 'No response'}")
+            print(f"Error uploading annotation {annotation_slug}: {e}")
             raise
     
     def get_container(self, container_slug: str) -> Dict[str, Any]:
@@ -161,29 +136,19 @@ class MiiifyClient:
         """
         url = urljoin(self.base_url, f"/annotations/{container_slug}")
         
-        print(f"🗑️ Attempting to delete container at: {url}")
-        
         try:
             response = self.session.delete(url)
-            print(f"🔍 Delete response status: {response.status_code}")
-            print(f"🔍 Delete response text: {response.text}")
             
             if response.status_code == 404:
-                print(f"🔍 Container {container_slug} does not exist (404)")
                 return False
             elif response.status_code == 405:
-                print(f"⚠️ DELETE method not allowed - container deletion not supported")
                 return False
             elif response.status_code in [200, 204]:
-                print(f"✅ Successfully deleted container: {container_slug} (status: {response.status_code})")
                 return True
             else:
                 response.raise_for_status()
-                print(f"✅ Successfully deleted container: {container_slug}")
                 return True
         except requests.exceptions.RequestException as e:
-            print(f"❌ Error deleting container {container_slug}: {e}")
-            print(f"Delete response content: {response.text if 'response' in locals() else 'No response'}")
             return False
 
 
@@ -286,42 +251,23 @@ def upload_collection_to_miiify(collection_data: Dict[str, Any],
         }
         
         # Create the container (will delete and recreate if exists)
-        print(f"🏗️ Creating container: {container_slug}")
         miiify_client.create_container(container_slug, container_metadata)
         results['container_created'] = True
-        print(f"✅ Container created successfully: {container_slug}")
+        results['container_slug'] = container_slug
         
         # Upload individual annotations from all pages
-        total_pages = len(collection_data.get('items', []))
-        print(f"📄 Found {total_pages} annotation pages in collection")
-        
-        for page_idx, page in enumerate(collection_data.get('items', []), 1):
-            page_annotations = page.get('items', [])
-            print(f"📄 Page {page_idx}/{total_pages}: {len(page_annotations)} annotations")
-            
-            for ann_idx, annotation in enumerate(page_annotations, 1):
-                print(f"\n📤 Processing annotation {ann_idx}/{len(page_annotations)} from page {page_idx}")
-                print(f"🔍 Annotation keys: {list(annotation.keys())}")
-                print(f"🔍 Annotation type: {annotation.get('type', 'MISSING')}")
-                print(f"🔍 Annotation ID: {annotation.get('id', 'MISSING')}")
-                
+        for page in collection_data.get('items', []):
+            for annotation in page.get('items', []):
                 if 'id' not in annotation:
-                    print(f"❌ Skipping annotation without ID")
                     continue
                     
                 annotation_slug = extract_slug_from_annotation_id(annotation['id'])
-                
-                print(f"� Original annotation ID: {annotation['id']}")
-                print(f"�📤 Uploading annotation with slug: {annotation_slug}")
-                print(f"🔍 Expected server ID: http://miiify:10000/annotations/{container_slug}/{annotation_slug}")
                 miiify_client.upload_annotation(
                     container_slug, 
                     annotation_slug, 
                     annotation
                 )
                 results['annotations_uploaded'] += 1
-        
-        print(f"✅ Successfully uploaded {results['annotations_uploaded']} annotations to container {container_slug}")
         
     except Exception as e:
         error_msg = f"Error uploading collection: {e}"

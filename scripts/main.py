@@ -41,18 +41,14 @@ def main():
     warc_filenames = set()
     token_count = 0
 
-    print(f"Processing {len(file_paths)} WARC files...")
     url_count = 0
     for url, html, warc_metadata in iter_html_responses(file_paths):
-        url_count += 1
-        print(f"Processing URL {url_count}: {url}")
         
         generated_annotation = None
         processed_html = None
         llm_decision = None
 
         heuristic_decision = should_archive(str(url))
-        print(f"Heuristic decision for {url}: {heuristic_decision}")
 
         original_html = str(html)
 
@@ -61,36 +57,29 @@ def main():
         processed_html_tokens = count_tokens_openai(processed_html)
 
         if heuristic_decision is True:
-            print(f"Getting LLM decision for: {url}")
             sel = generate_response(
                 llm=llm,
                 system_prompt=system_prompt_filter,
                 user_prompt=str(url)
             )
-            print(f"LLM filter response: {sel}")
 
             llm_decision = json.loads(sel)
             llm_decision = llm_decision["decision"]
-            print(f"LLM decision: {llm_decision}")
 
             if llm_decision == "archive":
-                print(f"Archiving URL: {url}")
                 prompt_tokens = sys_prompt_tokens + processed_html_tokens
 
                 if token_count + prompt_tokens > TOKEN_BUDGET:
                     time.sleep(DELAY)
                     token_count = 0
 
-                print("Generating annotations with LLM...")
                 generated_annotation = generate_response(
                     llm=llm,
                     system_prompt=system_prompt_gen,
                     user_prompt=processed_html
                 )
-                print(f"Generated annotation response (length: {len(generated_annotation) if generated_annotation else 0})")
 
                 generated_annotation_page = json.loads(generated_annotation)
-                print(f"Parsed annotation page with {len(generated_annotation_page.get('items', []))} items")
 
                 completion_tokens = count_tokens_openai(generated_annotation) if generated_annotation else 0
                 token_count += prompt_tokens + completion_tokens
@@ -191,28 +180,24 @@ def main():
         json.dump(collection, f, ensure_ascii=False, indent=2)
 
     # Upload to Miiify server as part of pipeline
-    print("Starting Miiify upload...")
     try:
         from CrawlToW3C.miiify_client import upload_collection_to_miiify, MiiifyClient
         
         # Give Miiify server a moment to be ready
-        print("Waiting 5 seconds for Miiify server...")
         time.sleep(5)
         
-        # Upload directly to Miiify server
-        print("Uploading collection to Miiify server...")
         client = MiiifyClient(base_url="http://miiify:10000")
         results = upload_collection_to_miiify(collection, client)
         
         if results['container_created'] and not results['errors']:
-            print(f"✅ Successfully uploaded {results['annotations_uploaded']} annotations to Miiify server")
+            print(f"✓ Uploaded {results['annotations_uploaded']} annotations to container: {results.get('container_slug', 'unknown')}")
         else:
-            print(f"⚠️ Upload completed with errors: {results['errors']}")
+            print(f"Upload errors: {results['errors']}")
             
     except ImportError:
-        print("❌ Miiify client not available - skipping upload")
+        print("Miiify client not available - skipping upload")
     except Exception as e:
-        print(f"❌ Error uploading to Miiify: {e}")
+        print(f"Error uploading to Miiify: {e}")
 
 
 if __name__ == "__main__":
