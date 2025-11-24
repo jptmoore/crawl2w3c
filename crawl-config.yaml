@@ -13,3 +13,21 @@ generateWACZ: false
 
 workers: 1
 logLevel: info
+
+blockRules:
+  - url: ".*\\.mp4($|\\?)"
+  - url: ".*\\.webm($|\\?)"
+  - url: ".*\\.mov($|\\?)"
+  - url: ".*\\.m4v($|\\?)"
+  - url: ".*\\.avi($|\\?)"
+  - url: ".*\\.mkv($|\\?)"
+  - url: ".*\\.mp3($|\\?)"
+  - url: ".*\\.ogg($|\\?)"
+  - url: ".*\\.wav($|\\?)"
+  - url: ".*\\.flac($|\\?)"
+  - url: ".*\\.jpe?g($|\\?)"
+  - url: ".*\\.png($|\\?)"
+  - url: ".*\\.gif($|\\?)"
+  - url: ".*\\.webp($|\\?)"
+  - url: ".*\\.avif($|\\?)"
+  - url: ".*\\.svg($|\\?)"
