@@ -18,8 +18,11 @@ DELAY = 60
 OUTPUT_FILE = "src/CrawlToW3C/results/results_collection.json"
 
 def main():
+    print("Starting Crawl2W3C pipeline...")
+    
     # Clear seen URLs from any previous runs
     clear_seen_urls()
+    print("Cleared URL cache")
     
     # Check if the archive directory exists before processing
     archive_dir = "/app/collections/one/archive"
@@ -27,11 +30,17 @@ def main():
         print(f"ERROR: Archive directory '{archive_dir}' does not exist. Did the crawl step succeed?")
         return
     
+    print("Initializing LLM client...")
     llm = get_client()
+    
+    print("Loading WARC files...")
     file_paths = get_warc_file_paths()
+    print(f"Found {len(file_paths)} WARC files: {file_paths}")
+    
+    print("Loading system prompts...")
     system_prompt_gen = load_system_prompt("src/CrawlToW3C/llms/system_prompts.yml", "gpt5_generation")
-    system_prompt_filter = load_system_prompt("src/CrawlToW3C/llms/system_prompts.yml", "gpt5_url_selection")
-    sys_prompt_tokens = count_tokens_openai(system_prompt_gen)
+    sys_prompt_gen_tokens = count_tokens_openai(system_prompt_gen)
+    print(f"System prompt loaded ({sys_prompt_gen_tokens} tokens)")
 
     # Ensure results directory exists
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
@@ -41,110 +50,121 @@ def main():
     warc_filenames = set()
     token_count = 0
 
+    print("Starting to process URLs from WARC files...")
     url_count = 0
     for url, html, warc_metadata in iter_html_responses(file_paths):
+        url_count += 1
         
         generated_annotation = None
         processed_html = None
-        llm_decision = None
 
+        # Use heuristic filter for URL-based filtering
         heuristic_decision = should_archive(str(url))
 
-        original_html = str(html)
-
-        processed_html = process_html(original_html)
-        processed_html = f"{str(url)}\n\n{processed_html}"
-        processed_html_tokens = count_tokens_openai(processed_html)
-
         if heuristic_decision is True:
-            sel = generate_response(
+            print(f"Processing URL {url_count}: {url}")
+            original_html = str(html)
+            processed_html = process_html(original_html)
+            processed_html = f"{str(url)}\n\n{processed_html}"
+            processed_html_tokens = count_tokens_openai(processed_html)
+
+            # Generate annotations - LLM will decide what's worth annotating
+            gen_prompt_tokens = sys_prompt_gen_tokens + processed_html_tokens
+
+            if token_count + gen_prompt_tokens > TOKEN_BUDGET:
+                print(f"Token budget reached, sleeping for {DELAY} seconds...")
+                time.sleep(DELAY)
+                token_count = 0
+
+            print(f"Generating annotations for {url}...")
+            generated_annotation = generate_response(
                 llm=llm,
-                system_prompt=system_prompt_filter,
-                user_prompt=str(url)
+                system_prompt=system_prompt_gen,
+                user_prompt=processed_html
             )
 
-            llm_decision = json.loads(sel)
-            llm_decision = llm_decision["decision"]
+            generated_annotation_page = json.loads(generated_annotation)
 
-            if llm_decision == "archive":
-                prompt_tokens = sys_prompt_tokens + processed_html_tokens
+            completion_tokens = count_tokens_openai(generated_annotation) if generated_annotation else 0
+            token_count += gen_prompt_tokens + completion_tokens
 
-                if token_count + prompt_tokens > TOKEN_BUDGET:
-                    time.sleep(DELAY)
-                    token_count = 0
+            if token_count > TOKEN_BUDGET:
+                time.sleep(DELAY)
+                token_count = 0
 
-                generated_annotation = generate_response(
-                    llm=llm,
-                    system_prompt=system_prompt_gen,
-                    user_prompt=processed_html
-                )
-
-                generated_annotation_page = json.loads(generated_annotation)
-
-                completion_tokens = count_tokens_openai(generated_annotation) if generated_annotation else 0
-                token_count += prompt_tokens + completion_tokens
-
-                if token_count > TOKEN_BUDGET:
-                    time.sleep(DELAY)
-                    token_count = 0
-
-                # Collect WARC filename for collection label
-                warc_filenames.add(warc_metadata.get("warc_filename"))
-                
-                # Add metadata to the AnnotationPage
-                collection_id = "urn:uuid:collection-001"
-                page_metadata = {
-                    "partOf": collection_id,
-                    "created": warc_metadata.get("warc_date"),
-                    "generator": {
-                        "id": "urn:crawl2w3c:v1",
-                        "type": "Software",
-                        "name": "Crawl2W3C",
-                        "homepage": "https://github.com/jptmoore/crawl2w3c"
-                    },
-                    "generated": warc_metadata.get("warc_date"),
-                    "source": {
-                        "warc_record_id": warc_metadata.get("warc_record_id"),
-                        "warc_ip_address": warc_metadata.get("warc_ip_address"),
-                        "warc_payload_digest": warc_metadata.get("warc_payload_digest"),
-                        "http_server": warc_metadata.get("http_server"),
-                        "http_last_modified": warc_metadata.get("http_last_modified")
-                    }
+            # Collect WARC filename for collection label
+            warc_filenames.add(warc_metadata.get("warc_filename"))
+            
+            # Add metadata to the AnnotationPage
+            collection_id = "urn:uuid:collection-001"
+            page_metadata = {
+                "partOf": collection_id,
+                "created": warc_metadata.get("warc_date"),
+                "generator": {
+                    "id": "urn:crawl2w3c:v1",
+                    "type": "Software",
+                    "name": "Crawl2W3C",
+                    "homepage": "https://github.com/jptmoore/crawl2w3c"
+                },
+                "generated": warc_metadata.get("warc_date"),
+                "source": {
+                    "warc_record_id": warc_metadata.get("warc_record_id"),
+                    "warc_ip_address": warc_metadata.get("warc_ip_address"),
+                    "warc_payload_digest": warc_metadata.get("warc_payload_digest"),
+                    "http_server": warc_metadata.get("http_server"),
+                    "http_last_modified": warc_metadata.get("http_last_modified")
                 }
+            }
 
-                # Add the AnnotationPage to the collection
-                if isinstance(generated_annotation_page, dict) and generated_annotation_page.get("type") == "AnnotationPage":
+            # Add the AnnotationPage to the collection (only if it has items)
+            if isinstance(generated_annotation_page, dict) and generated_annotation_page.get("type") == "AnnotationPage":
+                items = generated_annotation_page.get("items", [])
+                # Only add if there are actual annotations
+                if items:
+                    print(f"✓ Generated {len(items)} annotations for {url}")
                     # Add an ID and metadata to the AnnotationPage if it doesn't have them
                     if "id" not in generated_annotation_page:
                         generated_annotation_page["id"] = f"urn:uuid:page-{len(annotation_pages)+1}"
                     
                     # Reorder to put metadata after type and before items
-                    items = generated_annotation_page.pop("items", [])
+                    generated_annotation_page.pop("items", [])
                     generated_annotation_page.update(page_metadata)
                     generated_annotation_page["items"] = items
                     annotation_pages.append(generated_annotation_page)
-                elif isinstance(generated_annotation_page, dict) and "items" in generated_annotation_page:
+                else:
+                    print(f"Skipping {url} (no annotations generated)")
+            elif isinstance(generated_annotation_page, dict) and "items" in generated_annotation_page:
+                items = generated_annotation_page["items"]
+                # Only add if there are actual annotations
+                if items:
+                    print(f"✓ Generated {len(items)} annotations for {url}")
                     # Convert to proper AnnotationPage if missing type
                     page = {
                         "@context": "http://www.w3.org/ns/anno.jsonld",
                         "type": "AnnotationPage",
                         "id": f"urn:uuid:page-{len(annotation_pages)+1}",
                         **page_metadata,
-                        "items": generated_annotation_page["items"]
+                        "items": items
                     }
                     annotation_pages.append(page)
-                elif isinstance(generated_annotation_page, list):
-                    # Wrap array of annotations in AnnotationPage
-                    page = {
-                        "@context": "http://www.w3.org/ns/anno.jsonld",
-                        "type": "AnnotationPage",
-                        "id": f"urn:uuid:page-{len(annotation_pages)+1}",
-                        **page_metadata,
-                        "items": generated_annotation_page
-                    }
-                    annotation_pages.append(page)
+                else:
+                    print(f"Skipping {url} (no annotations generated)")
+            elif isinstance(generated_annotation_page, list) and generated_annotation_page:
+                # Only add if there are actual annotations
+                print(f"✓ Generated {len(generated_annotation_page)} annotations for {url}")
+                # Wrap array of annotations in AnnotationPage
+                page = {
+                    "@context": "http://www.w3.org/ns/anno.jsonld",
+                    "type": "AnnotationPage",
+                    "id": f"urn:uuid:page-{len(annotation_pages)+1}",
+                    **page_metadata,
+                    "items": generated_annotation_page
+                }
+                annotation_pages.append(page)
+            else:
+                print(f"Skipping {url} (no annotations generated)")
         else:
-            print(f"Skipping URL (heuristic: {heuristic_decision}): {url}")
+            print(f"Skipping URL (heuristic filter): {url}")
 
     print(f"Finished processing {url_count} URLs")
     print(f"Generated {len(annotation_pages)} annotation pages")

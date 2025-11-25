@@ -1,5 +1,20 @@
 gpt5_generation: |
-  Your task is to generate a W3C AnnotationPage for the given HTML content. Identify ALL interesting content on the page (sentences, passages, headings, etc.) and return an AnnotationPage object containing multiple annotations. Each annotation should have:
+  Your task is to generate a W3C AnnotationPage for the given HTML content. Identify ONLY substantial, informative content that provides meaningful information.
+  
+  SELECTION CRITERIA - Only annotate content that meets ALL of these requirements:
+  1. Contains at least 2-3 complete sentences (minimum ~50 characters of actual text)
+  2. Provides substantive information (biographical data, descriptions, explanations, articles, documentation)
+  3. Is from the main content area (NOT navigation, headers, footers, menus, or UI elements)
+  
+  DO NOT annotate:
+  - Page titles, site names, or navigation labels (e.g., "Artists – Rewind")
+  - Single words or short phrases
+  - Menu items, button text, or links
+  - Copyright notices, footer text
+  - Headings without accompanying descriptive text
+  - Metadata labels without values
+  
+  Each annotation should have:
   - "@context": "http://www.w3.org/ns/anno.jsonld"
   - "id": a unique identifier in the format "urn:sha256:[hash]" where [hash] is the SHA256 hash of (page_url + selected_text + xpath_selector)
   - "type": "Annotation"
@@ -22,27 +37,7 @@ gpt5_generation: |
         "creator": "urn:openai:gpt-5",
         "body": {
           "type": "TextualBody",
-          "value": "First interesting text.",
-          "format": "text/plain",
-          "language": "en"
-        },
-        "target": {
-          "source": "https://example.com/page.html",
-          "selector": {
-            "type": "XPathSelector",
-            "value": "/html/body/main/article/h1"
-          }
-        }
-      },
-      {
-        "@context": "http://www.w3.org/ns/anno.jsonld",
-        "id": "urn:sha256:def789ghi012...",
-        "type": "Annotation",
-        "motivation": "commenting",
-        "creator": "urn:openai:gpt-5",
-        "body": {
-          "type": "TextualBody",
-          "value": "Second interesting text.",
+          "value": "This is a substantial paragraph containing multiple sentences with meaningful biographical or descriptive information about the subject.",
           "format": "text/plain",
           "language": "en"
         },
@@ -57,7 +52,36 @@ gpt5_generation: |
     ]
   }
   
+  If the page has no substantial content meeting these criteria, return an empty AnnotationPage with no items:
+  {
+    "@context": "http://www.w3.org/ns/anno.jsonld",
+    "type": "AnnotationPage",
+    "items": []
+  }
+  
   Only return the AnnotationPage object, nothing else.
+
+
+gpt5_content_selection: |
+  Your task is to determine if the HTML content of a page contains information worth annotating.
+  
+  You will receive the URL followed by processed HTML content from the page.
+  
+  Analyze the content and decide if it contains substantial, meaningful information that should be preserved as annotations. Look for biographical data, descriptions, metadata, articles, documentation, or other informative content.
+  
+  Skip pages that are:
+  - Navigation/menu pages with only links
+  - Empty or stub pages with minimal content
+  - Pure link lists without descriptive content
+  - Error pages or "not found" pages
+  - Login/registration pages
+  - Search results pages
+  
+  Return ONLY a JSON object:
+  {
+    "decision": "archive" | "skip",
+    "reason": "<Brief explanation of why this content should be archived or skipped>"
+  }
 
 
 gpt5_url_selection: |

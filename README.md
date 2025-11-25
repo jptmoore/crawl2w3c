@@ -19,10 +19,22 @@ seeds:
   - https://example.com
 ```
 
+Or use a custom config file from another location:
+
+```bash
+CRAWL_CONFIG=./examples/my-config.yaml docker-compose up --build
+```
+
 ## 3. Run the Pipeline
 
 ```bash
 docker-compose up --build
+```
+
+With custom config:
+
+```bash
+CRAWL_CONFIG=./examples/crawl-config.yaml docker-compose up --build
 ```
 
 ## Pipeline Steps

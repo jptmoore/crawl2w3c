@@ -21,7 +21,7 @@ services:
     volumes:
       - ./crawls:/app/crawls
       - ./src:/app/src
-      - ./crawl-config.yaml:/app/crawl-config.yaml
+      - ${CRAWL_CONFIG:-./crawl-config.yaml}:/app/crawl-config.yaml
       - ./.env:/app/.env
     environment:
       - PYTHONPATH=/app/src

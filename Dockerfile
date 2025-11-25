@@ -16,4 +16,8 @@ RUN update-ca-certificates && \
     pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --no-cache-dir -r requirements.txt
 
 COPY . .
+
+# Disable Python output buffering for real-time logs
+ENV PYTHONUNBUFFERED=1
+
 CMD sh -c "crawl --config /app/crawl-config.yaml && make run-main"
