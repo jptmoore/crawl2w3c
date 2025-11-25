@@ -93,14 +93,22 @@ class MiiifyClient:
             
             if response.status_code == 201:
                 return response.json()
+            elif response.status_code == 400 and "annotation exists" in response.text.lower():
+                # Annotation already exists - log and skip
+                print(f"Skipping duplicate annotation: {annotation_slug}")
+                return {"skipped": True, "reason": "duplicate"}
             elif response.status_code == 400:
                 raise requests.exceptions.HTTPError(f"400 Bad Request: {response.text}")
             else:
                 response.raise_for_status()
                 return response.json()
         except requests.exceptions.RequestException as e:
-            print(f"Error uploading annotation {annotation_slug}: {e}")
-            raise
+            # Only raise if it's not a duplicate error we already handled
+            if "annotation exists" not in str(e).lower():
+                print(f"Error uploading annotation {annotation_slug}: {e}")
+                raise
+            # For duplicate errors, just return skip status
+            return {"skipped": True, "reason": "duplicate"}
     
     def get_container(self, container_slug: str) -> Dict[str, Any]:
         """
@@ -227,6 +235,7 @@ def upload_collection_to_miiify(collection_data: Dict[str, Any],
     results = {
         'container_created': False,
         'annotations_uploaded': 0,
+        'annotations_skipped': 0,
         'errors': []
     }
     
@@ -262,12 +271,17 @@ def upload_collection_to_miiify(collection_data: Dict[str, Any],
                     continue
                     
                 annotation_slug = extract_slug_from_annotation_id(annotation['id'])
-                miiify_client.upload_annotation(
+                result = miiify_client.upload_annotation(
                     container_slug, 
                     annotation_slug, 
                     annotation
                 )
-                results['annotations_uploaded'] += 1
+                
+                # Check if annotation was skipped due to duplicate
+                if isinstance(result, dict) and result.get('skipped'):
+                    results['annotations_skipped'] += 1
+                else:
+                    results['annotations_uploaded'] += 1
         
     except Exception as e:
         error_msg = f"Error uploading collection: {e}"

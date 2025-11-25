@@ -190,7 +190,10 @@ def main():
         results = upload_collection_to_miiify(collection, client)
         
         if results['container_created'] and not results['errors']:
-            print(f"✓ Uploaded {results['annotations_uploaded']} annotations to container: {results.get('container_slug', 'unknown')}")
+            msg = f"✓ Uploaded {results['annotations_uploaded']} annotations to container: {results.get('container_slug', 'unknown')}"
+            if results.get('annotations_skipped', 0) > 0:
+                msg += f" (skipped {results['annotations_skipped']} duplicates)"
+            print(msg)
         else:
             print(f"Upload errors: {results['errors']}")
             

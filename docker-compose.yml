@@ -30,6 +30,12 @@ services:
     networks:
       - crawl2w3c-network
     restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
 
 networks:
   crawl2w3c-network:
