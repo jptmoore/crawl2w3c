@@ -2,7 +2,6 @@
 import os
 import json
 import time
-from datetime import datetime, timezone
 from CrawlToW3C.process_warc import get_warc_file_paths, iter_html_responses
 from CrawlToW3C.html_preprocess import process_html
 from CrawlToW3C.url_filter import should_archive, clear_seen_urls
@@ -15,7 +14,6 @@ load_dotenv()
 # config
 TOKEN_BUDGET = 30000
 DELAY = 60
-OUTPUT_FILE = "src/CrawlToW3C/results/results_collection.json"
 
 def main():
     print("Starting Crawl2W3C pipeline...")
@@ -41,9 +39,6 @@ def main():
     system_prompt_gen = load_system_prompt("src/CrawlToW3C/llms/system_prompts.yml", "gpt5_generation")
     sys_prompt_gen_tokens = count_tokens_openai(system_prompt_gen)
     print(f"System prompt loaded ({sys_prompt_gen_tokens} tokens)")
-
-    # Ensure results directory exists
-    os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 
     # Initialize Miiify client for incremental uploads
     print("Initializing Miiify client...")
@@ -79,20 +74,21 @@ def main():
         print(f"Created Miiify container: {container_slug}")
         
     except ImportError:
-        print("Miiify client not available - annotations will only be saved to file")
+        print("Miiify client not available - annotations will be lost")
     except Exception as e:
         print(f"Warning: Could not initialize Miiify client: {e}")
         miiify_client = None
 
-    # For local JSON output (optional - can be removed if only using Miiify)
-    annotation_pages = []
-    warc_filenames = set()
+    annotation_pages_count = 0
     token_count = 0
 
+    print("="*60)
     print("Starting to process URLs from WARC files...")
+    print("="*60)
     url_count = 0
     for url, html, warc_metadata in iter_html_responses(file_paths):
         url_count += 1
+        print(f"\n[{url_count}] Examining URL: {url}")
         
         generated_annotation = None
         processed_html = None
@@ -101,7 +97,7 @@ def main():
         heuristic_decision = should_archive(str(url))
 
         if heuristic_decision is True:
-            print(f"Processing URL {url_count}: {url}")
+            print(f"  → Accepted by filter, processing content...")
             original_html = str(html)
             processed_html = process_html(original_html)
             processed_html = f"{str(url)}\n\n{processed_html}"
@@ -111,11 +107,11 @@ def main():
             gen_prompt_tokens = sys_prompt_gen_tokens + processed_html_tokens
 
             if token_count + gen_prompt_tokens > TOKEN_BUDGET:
-                print(f"Token budget reached, sleeping for {DELAY} seconds...")
+                print(f"  ⚠ Token budget reached, sleeping for {DELAY} seconds...")
                 time.sleep(DELAY)
                 token_count = 0
 
-            print(f"Generating annotations for {url}...")
+            print(f"  → Calling LLM to generate annotations...")
             generated_annotation = generate_response(
                 llm=llm,
                 system_prompt=system_prompt_gen,
@@ -130,9 +126,6 @@ def main():
             if token_count > TOKEN_BUDGET:
                 time.sleep(DELAY)
                 token_count = 0
-
-            # Collect WARC filename for collection label
-            warc_filenames.add(warc_metadata.get("warc_filename"))
             
             # Add metadata to the AnnotationPage
             collection_id = "urn:uuid:collection-001"
@@ -160,19 +153,20 @@ def main():
                 items = generated_annotation_page.get("items", [])
                 # Only add if there are actual annotations
                 if items:
-                    print(f"✓ Generated {len(items)} annotations for {url}")
+                    print(f"  ✓ Generated {len(items)} annotations")
+                    annotation_pages_count += 1
                     # Add an ID and metadata to the AnnotationPage if it doesn't have them
                     if "id" not in generated_annotation_page:
-                        generated_annotation_page["id"] = f"urn:uuid:page-{len(annotation_pages)+1}"
+                        generated_annotation_page["id"] = f"urn:uuid:page-{annotation_pages_count}"
                     
                     # Reorder to put metadata after type and before items
                     generated_annotation_page.pop("items", [])
                     generated_annotation_page.update(page_metadata)
                     generated_annotation_page["items"] = items
-                    annotation_pages.append(generated_annotation_page)
                     
                     # Upload to Miiify immediately
                     if miiify_client and container_slug:
+                        print(f"  → Uploading {len(items)} annotations to Miiify...")
                         for annotation in items:
                             if 'id' in annotation:
                                 try:
@@ -183,26 +177,27 @@ def main():
                                     else:
                                         annotations_uploaded += 1
                                 except Exception as e:
-                                    print(f"  Error uploading annotation: {e}")
+                                    print(f"    ⚠ Error uploading annotation: {e}")
                 else:
-                    print(f"Skipping {url} (no annotations generated)")
+                    print(f"  ✗ No annotations generated (content not substantial enough)")
             elif isinstance(generated_annotation_page, dict) and "items" in generated_annotation_page:
                 items = generated_annotation_page["items"]
                 # Only add if there are actual annotations
                 if items:
-                    print(f"✓ Generated {len(items)} annotations for {url}")
+                    print(f"  ✓ Generated {len(items)} annotations")
+                    annotation_pages_count += 1
                     # Convert to proper AnnotationPage if missing type
                     page = {
                         "@context": "http://www.w3.org/ns/anno.jsonld",
                         "type": "AnnotationPage",
-                        "id": f"urn:uuid:page-{len(annotation_pages)+1}",
+                        "id": f"urn:uuid:page-{annotation_pages_count}",
                         **page_metadata,
                         "items": items
                     }
-                    annotation_pages.append(page)
                     
                     # Upload to Miiify immediately
                     if miiify_client and container_slug:
+                        print(f"  → Uploading {len(items)} annotations to Miiify...")
                         for annotation in items:
                             if 'id' in annotation:
                                 try:
@@ -213,24 +208,25 @@ def main():
                                     else:
                                         annotations_uploaded += 1
                                 except Exception as e:
-                                    print(f"  Error uploading annotation: {e}")
+                                    print(f"    ⚠ Error uploading annotation: {e}")
                 else:
-                    print(f"Skipping {url} (no annotations generated)")
+                    print(f"  ✗ No annotations generated (content not substantial enough)")
             elif isinstance(generated_annotation_page, list) and generated_annotation_page:
                 # Only add if there are actual annotations
-                print(f"✓ Generated {len(generated_annotation_page)} annotations for {url}")
+                print(f"  ✓ Generated {len(generated_annotation_page)} annotations")
+                annotation_pages_count += 1
                 # Wrap array of annotations in AnnotationPage
                 page = {
                     "@context": "http://www.w3.org/ns/anno.jsonld",
                     "type": "AnnotationPage",
-                    "id": f"urn:uuid:page-{len(annotation_pages)+1}",
+                    "id": f"urn:uuid:page-{annotation_pages_count}",
                     **page_metadata,
                     "items": generated_annotation_page
                 }
-                annotation_pages.append(page)
                 
                 # Upload to Miiify immediately
                 if miiify_client and container_slug:
+                    print(f"  → Uploading {len(generated_annotation_page)} annotations to Miiify...")
                     for annotation in generated_annotation_page:
                         if 'id' in annotation:
                             try:
@@ -241,14 +237,16 @@ def main():
                                 else:
                                     annotations_uploaded += 1
                             except Exception as e:
-                                print(f"  Error uploading annotation: {e}")
+                                print(f"    ⚠ Error uploading annotation: {e}")
             else:
-                print(f"Skipping {url} (no annotations generated)")
+                print(f"  ✗ No annotations generated (content not substantial enough)")
         else:
-            print(f"Skipping URL (heuristic filter): {url}")
+            print(f"  ✗ Rejected by filter (URL pattern/extension)")
 
-    print(f"Finished processing {url_count} URLs")
-    print(f"Generated {len(annotation_pages)} annotation pages")
+    print("="*60)
+    print(f"COMPLETED: Processed {url_count} URLs")
+    print(f"Generated annotations from {annotation_pages_count} URLs")
+    print("="*60)
 
     # Report Miiify upload results
     if miiify_client and container_slug:
@@ -256,37 +254,6 @@ def main():
         if annotations_skipped > 0:
             msg += f" (skipped {annotations_skipped} duplicates)"
         print(msg)
-
-    # Create label with WARC filename(s)
-    warc_files_str = ", ".join(sorted(warc_filenames)) if warc_filenames else "Unknown WARC"
-    collection_label = f"Crawl2W3C Annotation Collection - {warc_files_str}"
-    
-    # Write W3C Web Annotation Collection to local file (for backup/reference)
-    collection_id = "urn:uuid:collection-001"
-    collection = {
-        "@context": "http://www.w3.org/ns/anno.jsonld",
-        "id": collection_id,
-        "type": "AnnotationCollection",
-        "label": collection_label,
-        "creator": {
-            "id": "urn:crawl2w3c:v1",
-            "type": "Software",
-            "name": "Crawl2W3C",
-            "homepage": "https://github.com/jptmoore/crawl2w3c"
-        },
-        "created": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
-        "generator": {
-            "id": "urn:openai:gpt-5",
-            "type": "Software",
-            "name": "OpenAI GPT-5",
-            "homepage": "https://openai.com"
-        },
-        "generated": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
-        "items": annotation_pages
-    }
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(collection, f, ensure_ascii=False, indent=2)
-    print(f"Saved annotation collection to {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":
