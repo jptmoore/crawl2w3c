@@ -45,7 +45,46 @@ def main():
     # Ensure results directory exists
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 
-    # Prepare annotation collection - store AnnotationPages
+    # Initialize Miiify client for incremental uploads
+    print("Initializing Miiify client...")
+    miiify_client = None
+    container_slug = None
+    annotations_uploaded = 0
+    annotations_skipped = 0
+    
+    try:
+        from CrawlToW3C.miiify_client import MiiifyClient, create_container_slug, extract_slug_from_annotation_id
+        
+        # Give Miiify server a moment to be ready
+        time.sleep(5)
+        
+        miiify_client = MiiifyClient(base_url="http://miiify:10000")
+        
+        # Create container once at the start
+        warc_files_str = None
+        if file_paths:
+            warc_filename = os.path.basename(file_paths[0])
+            warc_files_str = warc_filename
+        
+        collection_id = "urn:uuid:collection-001"
+        container_slug = create_container_slug(collection_id, warc_files_str)
+        
+        container_metadata = {
+            "@context": "http://iiif.io/api/presentation/3/context.json",
+            "type": "AnnotationCollection",
+            "label": f"Crawl2W3C Annotation Collection - {warc_files_str or 'Unknown WARC'}"
+        }
+        
+        miiify_client.create_container(container_slug, container_metadata)
+        print(f"Created Miiify container: {container_slug}")
+        
+    except ImportError:
+        print("Miiify client not available - annotations will only be saved to file")
+    except Exception as e:
+        print(f"Warning: Could not initialize Miiify client: {e}")
+        miiify_client = None
+
+    # For local JSON output (optional - can be removed if only using Miiify)
     annotation_pages = []
     warc_filenames = set()
     token_count = 0
@@ -131,6 +170,20 @@ def main():
                     generated_annotation_page.update(page_metadata)
                     generated_annotation_page["items"] = items
                     annotation_pages.append(generated_annotation_page)
+                    
+                    # Upload to Miiify immediately
+                    if miiify_client and container_slug:
+                        for annotation in items:
+                            if 'id' in annotation:
+                                try:
+                                    annotation_slug = extract_slug_from_annotation_id(annotation['id'])
+                                    result = miiify_client.upload_annotation(container_slug, annotation_slug, annotation)
+                                    if isinstance(result, dict) and result.get('skipped'):
+                                        annotations_skipped += 1
+                                    else:
+                                        annotations_uploaded += 1
+                                except Exception as e:
+                                    print(f"  Error uploading annotation: {e}")
                 else:
                     print(f"Skipping {url} (no annotations generated)")
             elif isinstance(generated_annotation_page, dict) and "items" in generated_annotation_page:
@@ -147,6 +200,20 @@ def main():
                         "items": items
                     }
                     annotation_pages.append(page)
+                    
+                    # Upload to Miiify immediately
+                    if miiify_client and container_slug:
+                        for annotation in items:
+                            if 'id' in annotation:
+                                try:
+                                    annotation_slug = extract_slug_from_annotation_id(annotation['id'])
+                                    result = miiify_client.upload_annotation(container_slug, annotation_slug, annotation)
+                                    if isinstance(result, dict) and result.get('skipped'):
+                                        annotations_skipped += 1
+                                    else:
+                                        annotations_uploaded += 1
+                                except Exception as e:
+                                    print(f"  Error uploading annotation: {e}")
                 else:
                     print(f"Skipping {url} (no annotations generated)")
             elif isinstance(generated_annotation_page, list) and generated_annotation_page:
@@ -161,6 +228,20 @@ def main():
                     "items": generated_annotation_page
                 }
                 annotation_pages.append(page)
+                
+                # Upload to Miiify immediately
+                if miiify_client and container_slug:
+                    for annotation in generated_annotation_page:
+                        if 'id' in annotation:
+                            try:
+                                annotation_slug = extract_slug_from_annotation_id(annotation['id'])
+                                result = miiify_client.upload_annotation(container_slug, annotation_slug, annotation)
+                                if isinstance(result, dict) and result.get('skipped'):
+                                    annotations_skipped += 1
+                                else:
+                                    annotations_uploaded += 1
+                            except Exception as e:
+                                print(f"  Error uploading annotation: {e}")
             else:
                 print(f"Skipping {url} (no annotations generated)")
         else:
@@ -169,11 +250,18 @@ def main():
     print(f"Finished processing {url_count} URLs")
     print(f"Generated {len(annotation_pages)} annotation pages")
 
+    # Report Miiify upload results
+    if miiify_client and container_slug:
+        msg = f"✓ Uploaded {annotations_uploaded} annotations to container: {container_slug}"
+        if annotations_skipped > 0:
+            msg += f" (skipped {annotations_skipped} duplicates)"
+        print(msg)
+
     # Create label with WARC filename(s)
     warc_files_str = ", ".join(sorted(warc_filenames)) if warc_filenames else "Unknown WARC"
     collection_label = f"Crawl2W3C Annotation Collection - {warc_files_str}"
     
-    # Write W3C Web Annotation Collection containing AnnotationPages with rich metadata
+    # Write W3C Web Annotation Collection to local file (for backup/reference)
     collection_id = "urn:uuid:collection-001"
     collection = {
         "@context": "http://www.w3.org/ns/anno.jsonld",
@@ -198,29 +286,7 @@ def main():
     }
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(collection, f, ensure_ascii=False, indent=2)
-
-    # Upload to Miiify server as part of pipeline
-    try:
-        from CrawlToW3C.miiify_client import upload_collection_to_miiify, MiiifyClient
-        
-        # Give Miiify server a moment to be ready
-        time.sleep(5)
-        
-        client = MiiifyClient(base_url="http://miiify:10000")
-        results = upload_collection_to_miiify(collection, client)
-        
-        if results['container_created'] and not results['errors']:
-            msg = f"✓ Uploaded {results['annotations_uploaded']} annotations to container: {results.get('container_slug', 'unknown')}"
-            if results.get('annotations_skipped', 0) > 0:
-                msg += f" (skipped {results['annotations_skipped']} duplicates)"
-            print(msg)
-        else:
-            print(f"Upload errors: {results['errors']}")
-            
-    except ImportError:
-        print("Miiify client not available - skipping upload")
-    except Exception as e:
-        print(f"Error uploading to Miiify: {e}")
+    print(f"Saved annotation collection to {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":
