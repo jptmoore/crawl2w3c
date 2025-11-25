@@ -7,7 +7,6 @@ seeds:
 
 scopeType: custom
 include:
-  - https://rewind.ac.uk/artists/
   - https://rewind.ac.uk/people/
 depth: 1
 limit: 2
