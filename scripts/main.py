@@ -53,7 +53,13 @@ def main():
         # Give Miiify server a moment to be ready
         time.sleep(5)
         
-        miiify_client = MiiifyClient(base_url="http://miiify:10000")
+        # Get optional Host header from environment (should include port for non-standard ports)
+        miiify_host = os.getenv('MIIIFY_HOST', 'localhost')
+        miiify_port = os.getenv('MIIIFY_PORT', '10000')
+        # Build Host header with port for non-standard ports
+        host_header = f"{miiify_host}:{miiify_port}"
+        print(f"Using Host header: {host_header}")
+        miiify_client = MiiifyClient(base_url="http://miiify:10000", host=host_header)
         
         # Create container once at the start
         warc_files_str = None

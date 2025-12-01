@@ -10,6 +10,19 @@ Create a `.env` file in the project root:
 OPENAI_API_KEY=sk-your_api_key
 ```
 
+### Optional Configuration
+
+You can configure annotation ID generation by setting these environment variables:
+
+```env
+MIIIFY_HOST=localhost          # Default: localhost - Hostname for annotation IDs
+MIIIFY_ID_PROTO=http          # Default: http - Protocol for annotation IDs (http/https)
+MIIIFY_PORT=10000             # Default: 10000 - Port for Miiify server
+```
+
+These configure how annotation IDs are generated, for example:
+- `http://localhost:10000/annotations/...`
+
 ## 2. Configure seeds
 
 Edit `crawl-config.yaml`:
@@ -27,6 +40,8 @@ CRAWL_CONFIG=./examples/my-config.yaml docker-compose up --build
 
 ## 3. Run the Pipeline
 
+Basic usage:
+
 ```bash
 docker-compose up --build
 ```
@@ -37,9 +52,15 @@ With custom config:
 CRAWL_CONFIG=./examples/crawl-config.yaml docker-compose up --build
 ```
 
+With custom annotation ID configuration:
+
+```bash
+MIIIFY_HOST=example.com MIIIFY_ID_PROTO=https CRAWL_CONFIG=./examples/crawl-config.yaml docker-compose up --build
+```
+
 ## Pipeline Steps
 
 1. **Crawl**: Download web content using configured seeds
 2. **Process**: Extract and preprocess HTML content  
 3. **Annotate**: Generate W3C Web Annotations using LLM
-4. **Upload**: Store annotations in Miiify server with persistent IDs
+4. **Upload**: Stream annotations directly to Miiify server with persistent IDs

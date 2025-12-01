@@ -15,19 +15,23 @@ from urllib.parse import urljoin
 class MiiifyClient:
     """Client for interacting with Miiify annotation server."""
     
-    def __init__(self, base_url: str = "http://miiify:10000"):
+    def __init__(self, base_url: str = "http://miiify:10000", host: Optional[str] = None):
         """
         Initialize Miiify client.
         
         Args:
             base_url: Base URL of the Miiify annotation server
+            host: Optional Host header value (for W3C Web Annotation protocol)
         """
         self.base_url = base_url.rstrip('/')
         self.session = requests.Session()
-        self.session.headers.update({
+        headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
-        })
+        }
+        if host:
+            headers['Host'] = host
+        self.session.headers.update(headers)
     
     def create_container(self, container_slug: str, container_data: Dict[str, Any]) -> Dict[str, Any]:
         """
