@@ -58,9 +58,4 @@ With custom annotation ID configuration:
 MIIIFY_HOST=example.com MIIIFY_ID_PROTO=https CRAWL_CONFIG=./examples/crawl-config.yaml docker-compose up --build
 ```
 
-## Pipeline Steps
 
-1. **Crawl**: Download web content using configured seeds
-2. **Process**: Extract and preprocess HTML content  
-3. **Annotate**: Generate W3C Web Annotations using LLM
-4. **Upload**: Stream annotations directly to Miiify server with persistent IDs
