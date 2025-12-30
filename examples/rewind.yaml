@@ -9,7 +9,7 @@ scopeType: custom
 include:
   - https://rewind.ac.uk/people/
 depth: 1
-limit: 50
+limit: 2
 
 combineWARC: true
 generateWACZ: false

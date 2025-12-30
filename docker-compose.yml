@@ -4,6 +4,8 @@ services:
     image: jptmoore/miiify:latest
     ports:
       - "10000:10000"
+    volumes:
+      - miiify-data:/home/miiify/db
     environment:
       - NODE_ENV=production
       - MIIIFY_ID_PROTO=${MIIIFY_ID_PROTO:-http}
@@ -44,3 +46,7 @@ services:
 networks:
   crawl2w3c-network:
     driver: bridge
+
+volumes:
+  miiify-data:
+    driver: local
