@@ -4,6 +4,7 @@ from CrawlToW3C.url_filter import should_archive
 from CrawlToW3C.llms.openai_wrapper import get_client, generate_response
 from CrawlToW3C.llms.load_system_prompt import load_system_prompt
 from CrawlToW3C.llms.token_count import count_tokens_openai
+from CrawlToW3C.entity_writer import write_entities_to_jsonl
 
 import json
 import time
@@ -71,8 +72,9 @@ def main():
     state = load_state()
     token_count = int(state.get("token_count", 0))
     processed_urls = read_processed_urls()
+    entities_extracted_count = 0
 
-    for url, html in iter_html_responses(file_paths):
+    for url, html, warc_metadata in iter_html_responses(file_paths):
         if url in processed_urls:
             continue
 
@@ -97,6 +99,23 @@ def main():
 
                 generated_annotation = generate_response(llm=llm, system_prompt=system_prompt_gen, user_prompt=str(processed_html))
                 print(generated_annotation)
+                
+                # Extract entities from the LLM response
+                try:
+                    llm_response = json.loads(generated_annotation)
+                    extracted_entities = llm_response.get("entities", [])
+                    
+                    if extracted_entities:
+                        write_entities_to_jsonl(
+                            entities=extracted_entities,
+                            url=url,
+                            warc_metadata=warc_metadata,
+                            output_dir="src/CrawlToW3C/results"
+                        )
+                        entities_extracted_count += len(extracted_entities)
+                        print(f"Extracted {len(extracted_entities)} entities from {url}")
+                except Exception as e:
+                    print(f"Warning: Could not extract entities: {e}")
 
                 completion_tokens = count_tokens_openai(generated_annotation) if generated_annotation else 0
                 token_count += prompt_tokens + completion_tokens
@@ -117,6 +136,7 @@ def main():
         append_checkpoint(record)
         save_state({"token_count": token_count})
 
+    print(f"\nTotal entities extracted: {entities_extracted_count}")
     finalise_parquet()
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 gpt5_generation: |
-  Your task is to generate a W3C AnnotationPage for the given HTML content. Identify ONLY substantial, informative content that provides meaningful information.
+  Your task is to generate a W3C AnnotationPage for the given HTML content AND extract entities (especially artists, people, organizations, and works) for RAG purposes.
   
   SELECTION CRITERIA - Only annotate content that meets ALL of these requirements:
   1. Contains at least 2-3 complete sentences (minimum ~50 characters of actual text)
@@ -24,42 +24,72 @@ gpt5_generation: |
   - "target": with the original URL as "source"
   - "selector": an XPathSelector that precisely identifies the selected text in the HTML.
   
-  Return an AnnotationPage like this:
+  ENTITY EXTRACTION:
+  Extract entities ONLY from the text that you include in the annotations (the "value" fields in the annotation bodies).
+  Do NOT extract entities from content you choose not to annotate.
+  
+  Extract these entity types:
+  - Artists (painters, musicians, performers, etc.)
+  - People (names of individuals)
+  - Organizations (galleries, museums, institutions, bands, labels)
+  - Works (titles of artworks, albums, songs, exhibitions)
+  - Locations (cities, venues, galleries)
+  
+  For each entity provide:
+  - "name": the entity name as it appears in the annotated text
+  - "type": one of ["artist", "person", "organization", "work", "location", "other"]
+  
+  Return a JSON object with BOTH annotations and entities:
   {
-    "@context": "http://www.w3.org/ns/anno.jsonld",
-    "type": "AnnotationPage",
-    "items": [
-      {
-        "@context": "http://www.w3.org/ns/anno.jsonld",
-        "id": "urn:sha256:abc123def456...",
-        "type": "Annotation",
-        "motivation": "commenting",
-        "creator": "urn:openai:gpt-5",
-        "body": {
-          "type": "TextualBody",
-          "value": "This is a substantial paragraph containing multiple sentences with meaningful biographical or descriptive information about the subject.",
-          "format": "text/plain",
-          "language": "en"
-        },
-        "target": {
-          "source": "https://example.com/page.html",
-          "selector": {
-            "type": "XPathSelector",
-            "value": "/html/body/main/article/section[1]/p[1]"
+    "annotationPage": {
+      "@context": "http://www.w3.org/ns/anno.jsonld",
+      "type": "AnnotationPage",
+      "items": [
+        {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "id": "urn:sha256:abc123def456...",
+          "type": "Annotation",
+          "motivation": "commenting",
+          "creator": "urn:openai:gpt-5",
+          "body": {
+            "type": "TextualBody",
+            "value": "This is a substantial paragraph containing multiple sentences with meaningful biographical or descriptive information about the subject.",
+            "format": "text/plain",
+            "language": "en"
+          },
+          "target": {
+            "source": "https://example.com/page.html",
+            "selector": {
+              "type": "XPathSelector",
+              "value": "/html/body/main/article/section[1]/p[1]"
+            }
           }
         }
-      }
+      ]
+    },
+    "entities": [
+      {
+        "name": "Pablo Picasso",
+        "type": "artist",
+        "context": "Pabl
+      },
+      {
+        "name": "Museum of Modern Art",
+        "type": "organization
     ]
   }
   
-  If the page has no substantial content meeting these criteria, return an empty AnnotationPage with no items:
+  If the page has no substantial content, return empty arrays:
   {
-    "@context": "http://www.w3.org/ns/anno.jsonld",
-    "type": "AnnotationPage",
-    "items": []
+    "annotationPage": {
+      "@context": "http://www.w3.org/ns/anno.jsonld",
+      "type": "AnnotationPage",
+      "items": []
+    },
+    "entities": []
   }
   
-  Only return the AnnotationPage object, nothing else.
+  Only return the JSON object with annotationPage and entities, nothing else.
 
 
 gpt5_content_selection: |

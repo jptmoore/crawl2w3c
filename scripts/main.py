@@ -1,4 +1,3 @@
-
 import os
 import json
 import time
@@ -8,6 +7,7 @@ from CrawlToW3C.url_filter import should_archive, clear_seen_urls
 from CrawlToW3C.llms.openai_wrapper import get_client, generate_response
 from CrawlToW3C.llms.load_system_prompt import load_system_prompt
 from CrawlToW3C.llms.token_count import count_tokens_openai
+from CrawlToW3C.entity_writer import write_entities_to_jsonl
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -87,6 +87,7 @@ def main():
 
     annotation_pages_count = 0
     token_count = 0
+    entities_extracted_count = 0
 
     print("="*60)
     print("Starting to process URLs from WARC files...")
@@ -124,7 +125,23 @@ def main():
                 user_prompt=processed_html
             )
 
-            generated_annotation_page = json.loads(generated_annotation)
+            # Parse the response - now contains both annotationPage and entities
+            llm_response = json.loads(generated_annotation)
+            generated_annotation_page = llm_response.get("annotationPage", {})
+            extracted_entities = llm_response.get("entities", [])
+            
+            # Write entities to JSONL if any were extracted
+            if extracted_entities:
+                try:
+                    entity_file = write_entities_to_jsonl(
+                        entities=extracted_entities,
+                        url=url,
+                        warc_metadata=warc_metadata
+                    )
+                    entities_extracted_count += len(extracted_entities)
+                    print(f"  ✓ Extracted {len(extracted_entities)} entities to {os.path.basename(entity_file)}")
+                except Exception as e:
+                    print(f"  ⚠ Error writing entities: {e}")
 
             completion_tokens = count_tokens_openai(generated_annotation) if generated_annotation else 0
             token_count += gen_prompt_tokens + completion_tokens
@@ -252,6 +269,7 @@ def main():
     print("="*60)
     print(f"COMPLETED: Processed {url_count} URLs")
     print(f"Generated annotations from {annotation_pages_count} URLs")
+    print(f"Extracted {entities_extracted_count} entities for RAG")
     print("="*60)
 
     # Report Miiify upload results
