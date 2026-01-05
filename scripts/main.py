@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # config
-TOKEN_BUDGET = 30000
+TOKEN_BUDGET = 400000  # gpt-5 allows 500k TPM, leave some headroom
 DELAY = 60
 
 def main():

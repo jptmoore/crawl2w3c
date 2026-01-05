@@ -9,18 +9,22 @@ scopeType: custom
 include:
   - https://rewind.ac.uk/people/
 depth: 1
-limit: 2
+#limit: 2
 
 combineWARC: true
 generateWACZ: false
 
-workers: 1
+workers: 2
 logLevel: info
 
-timeout: 300
+timeout: 120
 crawlTimeout: 3600
 
 blockRules:
+  - url: ".*challenges\\.cloudflare\\.com.*"
+  - url: ".*cdn-cgi.*"
+  - url: ".*player\\.vimeo\\.com.*"
+  - url: ".*youtube\\.com/embed.*"
   - url: ".*\\.mp4($|\\?)"
   - url: ".*\\.webm($|\\?)"
   - url: ".*\\.mov($|\\?)"
