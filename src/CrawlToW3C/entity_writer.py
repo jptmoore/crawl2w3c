@@ -36,9 +36,14 @@ def write_entities_to_jsonl(entities: List[Dict[str, Any]], url: str,
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
     
-    # Create filename based on WARC filename
+    # Create filename based on worker number from WARC filename
     warc_filename = warc_metadata.get("warc_filename", "unknown")
-    base_name = warc_filename.replace('.warc.gz', '').replace('.warc', '')
+    # Extract worker number from filename (e.g., "rec-one-20260105185218349-0" -> "worker-0")
+    if '-' in warc_filename:
+        worker_num = warc_filename.split('-')[-1].split('.')[0]  # Get last number before extension
+        base_name = f"worker-{worker_num}"
+    else:
+        base_name = warc_filename.replace('.warc.gz', '').replace('.warc', '')
     output_file = os.path.join(output_dir, f"{base_name}_entities.jsonl")
     
     # Write entities to JSONL
