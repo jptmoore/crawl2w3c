@@ -64,7 +64,7 @@ The pipeline automatically extracts entities (artists, people, organizations, wo
 
 ### Output Format
 
-Entities are saved as `{warc_filename}_entities.jsonl` with one JSON object per line:
+When using multiple workers, entities are saved as `worker-{N}_entities.jsonl` (e.g., `worker-0_entities.jsonl`, `worker-1_entities.jsonl`) with one JSON object per line:
 
 ```json
 {
@@ -84,4 +84,4 @@ Entities are saved as `{warc_filename}_entities.jsonl` with one JSON object per 
 
 Entity types: `artist`, `person`, `organization`, `work`, `location`, `other`
 
-The JSONL files are ready for processing by a separate reducer/aggregator tool for RAG indexing.
+The JSONL files are ready for processing by a separate reducer/aggregator tool for RAG indexing. When using multiple workers, load all `worker-*_entities.jsonl` files to get the complete entity dataset.
